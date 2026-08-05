@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0A0D12;
+  color: #E7EAEE;
+}
+
+::selection {
+  background: #E8B33D;
+  color: #0A0D12;
+}
+
+@keyframes scan {
+  0% { transform: translateY(0%); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translateY(100%); opacity: 1; }
+  60% { opacity: 0; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+.animate-scan { animation: scan 2.2s ease-in-out infinite; }
+
+@keyframes drift {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.animate-drift { animation: drift 6s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scan, .animate-drift { animation: none; }
+}
