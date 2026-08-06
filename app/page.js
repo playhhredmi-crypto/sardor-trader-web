@@ -15,6 +15,7 @@ import {
 import { useLanguage } from "../lib/LanguageContext";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import Logo from "../components/Logo";
+import TradingViewWidget from "../components/TradingViewWidget";
 
 const STRATEGY_META = [
   { icon: Layers, color: "#E8B33D" },
@@ -136,6 +137,59 @@ export default function LandingPage() {
           ))}
         </div>
       </div>
+
+      <section className="max-w-6xl mx-auto px-6 py-24 border-b border-line">
+        <h2 className="font-display font-600 text-2xl sm:text-3xl mb-1.5">{t.goldMarket.heading}</h2>
+        <p className="text-muted mb-10">{t.goldMarket.desc}</p>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="border border-line rounded-2xl p-4 bg-panel">
+            <div className="text-xs font-mono uppercase tracking-wide text-muted mb-3 px-1">{t.goldMarket.chartLabel}</div>
+            <TradingViewWidget
+              scriptSrc="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js"
+              height={420}
+              config={{
+                symbols: [["OANDA:XAUUSD|1D"]],
+                chartOnly: false,
+                width: "100%",
+                height: "400",
+                locale: "en",
+                colorTheme: "dark",
+                autosize: false,
+                showVolume: false,
+                showMA: false,
+                hideDateRanges: false,
+                hideMarketStatus: false,
+                hideSymbolLogo: false,
+                scalePosition: "right",
+                scaleMode: "Normal",
+                fontFamily: "Inter, sans-serif",
+                noTimeScale: false,
+                valuesTracking: "1",
+                changeMode: "price-and-percent",
+                lineWidth: 2,
+                lineType: 0,
+              }}
+            />
+          </div>
+          <div className="border border-line rounded-2xl p-4 bg-panel">
+            <div className="text-xs font-mono uppercase tracking-wide text-muted mb-3 px-1">{t.goldMarket.newsLabel}</div>
+            <TradingViewWidget
+              scriptSrc="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js"
+              height={420}
+              config={{
+                feedMode: "symbol",
+                symbol: "OANDA:XAUUSD",
+                colorTheme: "dark",
+                isTransparent: true,
+                displayMode: "regular",
+                width: "100%",
+                height: "400",
+                locale: "en",
+              }}
+            />
+          </div>
+        </div>
+      </section>
 
       <section className="max-w-6xl mx-auto px-6 py-24 border-b border-line">
         <h2 className="font-display font-600 text-2xl sm:text-3xl mb-14">{t.steps.heading}</h2>

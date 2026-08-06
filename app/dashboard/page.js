@@ -31,8 +31,10 @@ const TIMEFRAMES = [
   { key: "H4", label: "H4", role: "bias" },
 ];
 
+const MIN_CONFIDENCE = 80;
+
 export default function Dashboard() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -213,7 +215,7 @@ export default function Dashboard() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timeframes: uploadedTFs }),
+        body: JSON.stringify({ timeframes: uploadedTFs, locale }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xatolik yuz berdi");
@@ -250,6 +252,7 @@ export default function Dashboard() {
   const trendColorFor = (tr) => (tr === "bullish" ? "#3ECF8E" : tr === "bearish" ? "#F0575E" : "#7C8698");
 
   const signal = analysis?.signal;
+  const isConfidentSignal = signal && signal.direction !== "WAIT" && signal.confidence >= MIN_CONFIDENCE;
   const signalColor = signal?.direction === "BUY" ? "#3ECF8E" : signal?.direction === "SELL" ? "#F0575E" : "#7C8698";
 
   const detailGroups = analysis ? [
@@ -359,12 +362,10 @@ export default function Dashboard() {
               </div>
               <div className="text-sm text-muted">{t.dashboard.confidence}: <span className="text-text font-semibold">{signal.confidence}%</span></div>
             </div>
-            {(uploadedCount < 2 || signal.confidence < 60) && (
+            {signal.confidence < MIN_CONFIDENCE && (
               <div className="flex items-start gap-2 bg-[#2A1F0F] border border-gold/30 rounded-lg px-3.5 py-2.5 mb-4 text-xs text-gold/90 leading-relaxed">
                 <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                {uploadedCount < 2
-                  ? "Faqat 1 ta timeframe yuklangan — ishonch darajasi past bo'lishi mumkin. Aniqroq signal uchun yana 1-2 timeframe qo'shib ko'ring."
-                  : "Ishonch darajasi past — bu signalni ehtiyotkorlik bilan baholang yoki qayta tekshiring."}
+                Ishonch darajasi {MIN_CONFIDENCE}%dan past — bu signalni ehtiyotkorlik bilan baholang. Kuchliroq signal uchun ko'proq timeframe qo'shib ko'ring.
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
