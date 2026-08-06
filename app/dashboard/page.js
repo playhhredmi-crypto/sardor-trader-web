@@ -15,6 +15,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Newspaper,
 } from "lucide-react";
 import { useLanguage } from "../../lib/LanguageContext";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
@@ -36,11 +37,29 @@ export default function Dashboard() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user || null));
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user || null);
+      if (event === "SIGNED_IN" && session?.user) {
+        applyPendingReferral(session.user.id);
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  const applyPendingReferral = async (userId) => {
+    const code = typeof window !== "undefined" ? window.localStorage.getItem("pending_referral_code") : null;
+    if (!code) return;
+    const { data: myProfile } = await supabase.from("profiles").select("referred_by, referral_code").eq("id", userId).single();
+    if (!myProfile || myProfile.referred_by || myProfile.referral_code === code) {
+      window.localStorage.removeItem("pending_referral_code");
+      return;
+    }
+    const { data: owner } = await supabase.from("profiles").select("id").eq("referral_code", code).single();
+    if (owner && owner.id !== userId) {
+      await supabase.from("profiles").update({ referred_by: owner.id }).eq("id", userId);
+    }
+    window.localStorage.removeItem("pending_referral_code");
+  };
   const [images, setImages] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -340,6 +359,14 @@ export default function Dashboard() {
               </div>
               <div className="text-sm text-muted">{t.dashboard.confidence}: <span className="text-text font-semibold">{signal.confidence}%</span></div>
             </div>
+            {(uploadedCount < 2 || signal.confidence < 60) && (
+              <div className="flex items-start gap-2 bg-[#2A1F0F] border border-gold/30 rounded-lg px-3.5 py-2.5 mb-4 text-xs text-gold/90 leading-relaxed">
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                {uploadedCount < 2
+                  ? "Faqat 1 ta timeframe yuklangan — ishonch darajasi past bo'lishi mumkin. Aniqroq signal uchun yana 1-2 timeframe qo'shib ko'ring."
+                  : "Ishonch darajasi past — bu signalni ehtiyotkorlik bilan baholang yoki qayta tekshiring."}
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <Stat label={t.dashboard.entry} value={signal.entry} />
               <Stat label={t.dashboard.stopLoss} value={signal.stop_loss} color="#F0575E" />
@@ -347,6 +374,34 @@ export default function Dashboard() {
               <Stat label={t.dashboard.rr} value={signal.risk_reward} color="#E8B33D" />
             </div>
             <p className="text-sm leading-relaxed text-[#B8C0CC]">{signal.reasoning}</p>
+          </div>
+        )}
+
+        {analysis?.fundamental && (
+          <div className="bg-panel border border-line rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Newspaper size={16} className="text-gold" />
+              <span className="font-mono text-xs uppercase tracking-wide font-semibold text-gold">Fundamental fon</span>
+              <span
+                className="text-[11px] font-mono uppercase px-2 py-0.5 rounded-full ml-auto"
+                style={{
+                  background: trendColorFor(analysis.fundamental.sentiment) + "22",
+                  color: trendColorFor(analysis.fundamental.sentiment),
+                }}
+              >
+                {analysis.fundamental.sentiment}
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed text-[#B8C0CC] mb-3">{analysis.fundamental.summary}</p>
+            {analysis.fundamental.key_factors?.length > 0 && (
+              <ul className="space-y-1.5">
+                {analysis.fundamental.key_factors.map((f, i) => (
+                  <li key={i} className="text-xs text-muted flex items-start gap-1.5">
+                    <span className="text-gold mt-0.5">•</span> {f}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
