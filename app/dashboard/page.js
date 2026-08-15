@@ -16,6 +16,15 @@ import {
   ChevronDown,
   ChevronUp,
   Newspaper,
+  Layers,
+  Boxes,
+  Landmark,
+  Waypoints,
+  Minus,
+  GitBranch,
+  Percent,
+  Check,
+  BarChart3,
 } from "lucide-react";
 import { useLanguage } from "../../lib/LanguageContext";
 import LanguageSwitcher from "../../components/LanguageSwitcher";
@@ -29,6 +38,20 @@ const TIMEFRAMES = [
   { key: "M30", label: "M30", role: "confirm" },
   { key: "H1", label: "H1", role: "bias" },
   { key: "H4", label: "H4", role: "bias" },
+];
+
+// Backenddagi STRATEGY_MAP kalitlari bilan mos bo'lishi SHART (app/api/analyze/route.js)
+// primary: true — "asosiy" (default tanlangan) strategiyalar: SMC + Klassika (Trendline + S/R) + Volume
+// qolganlari ro'yxatda turadi, lekin standart tanlanmagan holatda keladi
+const STRATEGIES = [
+  { key: "smc", icon: Layers, color: "#E8B33D", label: { uz: "Order Block", ru: "Order Block", en: "Order Block" }, sub: "SMC", primary: true },
+  { key: "trendline", icon: GitBranch, color: "#3ECF8E", label: { uz: "Trendline", ru: "Трендлиния", en: "Trendline" }, sub: "Klassika", primary: true },
+  { key: "sr", icon: Minus, color: "#5B8DEF", label: { uz: "Support / Resistance", ru: "Поддержка / Сопротивление", en: "Support / Resistance" }, sub: "Klassika", primary: true },
+  { key: "volume", icon: BarChart3, color: "#F0B93D", label: { uz: "Volume", ru: "Объём", en: "Volume" }, sub: "Hajm", primary: true },
+  { key: "fvg", icon: Boxes, color: "#22D3EE", label: { uz: "Fair Value Gap", ru: "Fair Value Gap", en: "Fair Value Gap" }, sub: "FVG", primary: false },
+  { key: "amd", icon: Landmark, color: "#F0575E", label: { uz: "Bank Manipulatsiyasi", ru: "Банковская манипуляция", en: "Bank Manipulation" }, sub: "AMD", primary: false },
+  { key: "bos", icon: Waypoints, color: "#FF9F43", label: { uz: "Structure Break", ru: "Слом структуры", en: "Structure Break" }, sub: "BOS / CHoCH", primary: false },
+  { key: "fibonacci", icon: Percent, color: "#C084FC", label: { uz: "Fibonacci", ru: "Фибоначчи", en: "Fibonacci" }, sub: "Retracement", primary: false },
 ];
 
 const MIN_CONFIDENCE = 80;
@@ -67,8 +90,16 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  // Boshida hammasi tanlangan holda keladi — foydalanuvchi kerak bo'lmaganlarini o'chirib qo'yishi mumkin
+  const [selectedStrategies, setSelectedStrategies] = useState(STRATEGIES.filter((s) => s.primary).map((s) => s.key));
   const canvasRef = useRef(null);
   const imgObjRef = useRef(null);
+
+  const toggleStrategy = (key) => {
+    setSelectedStrategies((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
 
   const entryTFKey = useMemo(() => {
     const found = TIMEFRAMES.find((tf) => images[tf.key]);
@@ -208,6 +239,10 @@ export default function Dashboard() {
       base64: images[tf.key].base64,
     }));
     if (uploadedTFs.length === 0) return;
+    if (selectedStrategies.length === 0) {
+      setError("Kamida bitta strategiya tanlang.");
+      return;
+    }
     setLoading(true);
     setError(null);
     setAnalysis(null);
@@ -215,7 +250,7 @@ export default function Dashboard() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ timeframes: uploadedTFs, locale }),
+        body: JSON.stringify({ timeframes: uploadedTFs, locale, strategies: selectedStrategies }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Xatolik yuz berdi");
@@ -264,6 +299,7 @@ export default function Dashboard() {
     { title: "Support / Resistance", color: "#5B8DEF", items: (analysis.support_resistance || []).map((s) => `${s.type}${s.label ? " · " + s.label : ""}`) },
     { title: "Trendlines", color: "#3ECF8E", items: (analysis.trendlines || []).map((t) => t.label || "Trendline") },
     { title: "Fibonacci", color: "#C084FC", items: (analysis.fibonacci || []).map((f) => `${f.level}${f.label ? " · " + f.label : ""}`) },
+    { title: "Volume", color: "#F0B93D", items: analysis.volume_analysis ? [`${analysis.volume_analysis.trend}${analysis.volume_analysis.note ? " · " + analysis.volume_analysis.note : ""}`] : [] },
   ].filter((g) => g.items.length > 0) : [];
 
   return (
@@ -292,36 +328,113 @@ export default function Dashboard() {
           <p className="text-muted text-sm">{t.dashboard.desc}</p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
-          {TIMEFRAMES.map((tf) => {
-            const filled = images[tf.key];
-            const roleColor = tf.role === "bias" ? "#5B8DEF" : tf.role === "entry" ? "#3ECF8E" : "#E8B33D";
-            return (
-              <div key={tf.key} className="relative">
-                <label
-                  htmlFor={`tf-${tf.key}`}
-                  className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 cursor-pointer min-h-[92px] overflow-hidden border"
-                  style={{ borderColor: filled ? roleColor : "#232935", background: filled ? `${roleColor}14` : "#12161D" }}
+        {/* STRATEGIYA TANLASH — rasm yuklashdan oldin */}
+        <div>
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="font-mono text-xs uppercase tracking-wide text-muted">
+              1. Strategiyalarni tanlang
+            </div>
+            <div className="flex gap-3 text-xs">
+              <button
+                type="button"
+                onClick={() => setSelectedStrategies(STRATEGIES.filter((s) => s.primary).map((s) => s.key))}
+                className="text-gold hover:brightness-110"
+              >
+                Asosiylar
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStrategies(STRATEGIES.map((s) => s.key))}
+                className="text-muted hover:text-text"
+              >
+                Hammasi
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedStrategies([])}
+                className="text-muted hover:text-text"
+              >
+                Tozalash
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+            {STRATEGIES.map((s) => {
+              const Icon = s.icon;
+              const active = selectedStrategies.includes(s.key);
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => toggleStrategy(s.key)}
+                  className="relative flex items-center gap-2.5 rounded-xl p-2.5 border text-left transition-colors"
+                  style={{
+                    borderColor: active ? s.color : "#232935",
+                    background: active ? `${s.color}14` : "#12161D",
+                  }}
                 >
-                  {filled ? (
-                    <img src={filled.src} alt={tf.label} className="w-full h-12 object-cover rounded-md" />
-                  ) : (
-                    <UploadCloud size={18} className="text-muted" />
-                  )}
-                  <div className="font-mono text-xs font-bold" style={{ color: filled ? roleColor : "#7C8698" }}>{tf.label}</div>
-                  <div className="text-[9px] text-muted uppercase tracking-wide">
-                    {tf.role === "bias" ? t.dashboard.roleTrend : tf.role === "entry" ? t.dashboard.roleEntry : t.dashboard.roleConfirm}
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                    style={{ background: s.color + "1A", color: s.color }}
+                  >
+                    <Icon size={16} />
                   </div>
-                </label>
-                {filled && (
-                  <button onClick={() => removeImage(tf.key)} className="absolute top-1 right-1 bg-ink/80 rounded-full w-5 h-5 flex items-center justify-center">
-                    <X size={12} />
-                  </button>
-                )}
-                <input id={`tf-${tf.key}`} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(tf.key, e.target.files?.[0])} />
-              </div>
-            );
-          })}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate" style={{ color: active ? "#E7EAEE" : "#B8C0CC" }}>
+                      {s.label[locale] || s.label.en}
+                    </div>
+                    <div className="text-[10px] text-muted font-mono uppercase tracking-wide">{s.sub}</div>
+                  </div>
+                  {active && (
+                    <div
+                      className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full flex items-center justify-center"
+                      style={{ background: s.color }}
+                    >
+                      <Check size={10} className="text-ink" strokeWidth={3} />
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* GRAFIK YUKLASH */}
+        <div>
+          <div className="font-mono text-xs uppercase tracking-wide text-muted mb-2.5">
+            2. Grafiklarni yuklang
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+            {TIMEFRAMES.map((tf) => {
+              const filled = images[tf.key];
+              const roleColor = tf.role === "bias" ? "#5B8DEF" : tf.role === "entry" ? "#3ECF8E" : "#E8B33D";
+              return (
+                <div key={tf.key} className="relative">
+                  <label
+                    htmlFor={`tf-${tf.key}`}
+                    className="flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 cursor-pointer min-h-[92px] overflow-hidden border"
+                    style={{ borderColor: filled ? roleColor : "#232935", background: filled ? `${roleColor}14` : "#12161D" }}
+                  >
+                    {filled ? (
+                      <img src={filled.src} alt={tf.label} className="w-full h-12 object-cover rounded-md" />
+                    ) : (
+                      <UploadCloud size={18} className="text-muted" />
+                    )}
+                    <div className="font-mono text-xs font-bold" style={{ color: filled ? roleColor : "#7C8698" }}>{tf.label}</div>
+                    <div className="text-[9px] text-muted uppercase tracking-wide">
+                      {tf.role === "bias" ? t.dashboard.roleTrend : tf.role === "entry" ? t.dashboard.roleEntry : t.dashboard.roleConfirm}
+                    </div>
+                  </label>
+                  {filled && (
+                    <button onClick={() => removeImage(tf.key)} className="absolute top-1 right-1 bg-ink/80 rounded-full w-5 h-5 flex items-center justify-center">
+                      <X size={12} />
+                    </button>
+                  )}
+                  <input id={`tf-${tf.key}`} type="file" accept="image/*" className="hidden" onChange={(e) => handleFile(tf.key, e.target.files?.[0])} />
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {entryTFKey && (
@@ -336,7 +449,7 @@ export default function Dashboard() {
               )}
             </div>
             <div className="flex gap-2.5 mt-4 flex-wrap">
-              <button onClick={runAnalysis} disabled={loading} className="flex items-center gap-2 px-4.5 py-2.5 rounded-lg bg-gold text-ink font-semibold text-sm disabled:opacity-60">
+              <button onClick={runAnalysis} disabled={loading || selectedStrategies.length === 0} className="flex items-center gap-2 px-4.5 py-2.5 rounded-lg bg-gold text-ink font-semibold text-sm disabled:opacity-60">
                 {loading ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
                 {loading ? t.dashboard.analyzing : `${t.dashboard.getSignal} (${uploadedCount} ${t.dashboard.chartsWord})`}
               </button>
