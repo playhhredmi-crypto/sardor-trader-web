@@ -178,10 +178,19 @@ Barcha timeframelar mos kelsa (confluence) kuchli signal ber, mos kelmasa "WAIT"
     let clean = textBlock.text.replace(/```json|```/g, "").trim();
     clean = clean.replace(/,(\s*[}\]])/g, "$1");
 
+    // Ba'zida model JSON'dan oldin/keyin qo'shimcha matn qoldiradi (masalan "Mana natija:").
+    // Shu sababli faqat birinchi "{" dan oxirgi "}" gacha bo'lgan qismni ajratib olamiz.
+    const firstBrace = clean.indexOf("{");
+    const lastBrace = clean.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      clean = clean.slice(firstBrace, lastBrace + 1);
+    }
+
     let parsed;
     try {
       parsed = JSON.parse(clean);
     } catch (parseErr) {
+      console.error("JSON parse xatolik. Xom matn:", textBlock.text);
       return NextResponse.json(
         { error: "AI javobini o'qib bo'lmadi (noto'g'ri format). Iltimos, qayta urinib ko'ring." },
         { status: 502 }
