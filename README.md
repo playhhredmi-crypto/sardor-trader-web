@@ -111,3 +111,33 @@ npm install
 2. `/signup` sahifasida ro'yxatdan o'ting (email tasdiqlash xati keladi — Supabase standart sozlamada shart, xohlasangiz **Authentication > Providers > Email**da "Confirm email"ni o'chirib qo'ysangiz bo'ladi, tezroq sinash uchun)
 3. Kirib, `/dashboard`da signal oling — endi u avtomatik saqlanadi
 4. `/history` sahifasida signalni ko'ring, "Yutdi/Yutqazdi" deb belgilang — aniqlik foizi hisoblanadi
+
+## 10. `/live` — XAUUSD real vaqtli SMC tahlili (Twelve Data)
+
+Grafik yuklash shart emas — bu sahifa XAUUSD'ni **avtomatik, real vaqtda** (Twelve Data API orqali) kuzatib,
+Market Structure (BOS/CHoCH), Order Block, FVG, klassik Support/Resistance va hajm (tick-volume) asosida
+M5/M15/H1 ko'p-timeframe tahlili qiladi va har 45 soniyada o'zini yangilaydi.
+
+### a) Bepul API kalit olish
+1. https://twelvedata.com → **Sign Up** (email bilan, karta shart emas)
+2. Kirgach, Dashboard'dagi **API Key**ni nusxalang
+
+### b) Kalitni loyihaga qo'shish
+`.env.local` fayliga qo'shing:
+```
+TWELVE_DATA_API_KEY=sizning_kalitingiz
+```
+
+### c) Sinash
+1. `npm run dev`
+2. Brauzerda `http://localhost:3000/live` ni oching (yoki `/dashboard`dagi "XAUUSD · Jonli tahlil" havolasidan)
+
+### d) Qanday ishlaydi
+- `lib/twelveData.js` — Twelve Data'dan M5/M15/H1 shamlarini oladi (qisqa muddatli kesh bilan, bepul limitni tejash uchun)
+- `lib/smc.js` — swing struktura, BOS/CHoCH, Order Block, FVG, S/R va hajm signallarini hisoblaydi, 3 timeframe'ni birlashtirib yakuniy signal (BUY/SELL/WAIT + SL/TP) chiqaradi
+- `app/api/live-analysis/route.js` — server tomonidagi API endpoint
+- `app/live/page.js` — grafik (canvas) va signal panelini ko'rsatadigan sahifa
+
+**Eslatma:** forex/CFD bozorida haqiqiy birja savdo hajmi yo'q — "hajm" ko'rsatkichi Twelve Data'ning tick-count
+(narx necha marta yangilanganligi) ma'lumotiga asoslangan taxminiy signal, bu sahifada ham ochiq yozilgan.
+Bu moliyaviy maslahat emas — signal avtomatik qoidaviy tahlil natijasi.

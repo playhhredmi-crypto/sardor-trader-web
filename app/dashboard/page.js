@@ -309,6 +309,7 @@ export default function Dashboard() {
           <Logo label="Sardor Trader · Dashboard" />
         </Link>
         <div className="flex items-center gap-4">
+          <Link href="/live" className="text-sm text-gold hover:text-gold/80">XAUUSD · Jonli tahlil</Link>
           {user ? (
             <>
               <Link href="/history" className="text-sm text-muted hover:text-text">Signal tarixi</Link>
