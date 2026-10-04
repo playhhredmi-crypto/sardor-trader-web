@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, AlertTriangle, Boxes, Layers, Waypoints, BarChart3 } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, AlertTriangle, Boxes, Layers, Waypoints, BarChart3, Activity, Clock, Zap, CheckCircle2 } from "lucide-react";
 import Logo from "../../components/Logo";
 
 const REFRESH_MS = 45_000;
@@ -40,6 +40,72 @@ function StrategyToggles({ enabled, onToggle }) {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// Yangi tasdiqlovchi omillarni (trend/RSI, likvidlik tutish, sessiya, retest)
+// kichik belgi (badge) sifatida ko'rsatadi — foydalanuvchi signal nega
+// shunday chiqqanini bir qarashda tushunishi uchun.
+function ConfirmationBadges({ m15, signal }) {
+  if (!m15) return null;
+  const ema50 = m15.indicators?.ema50;
+  const rsi = m15.indicators?.rsi;
+  const trendOk =
+    ema50 != null && m15.lastClose != null
+      ? (m15.bias === "bullish" && m15.lastClose > ema50) || (m15.bias === "bearish" && m15.lastClose < ema50)
+      : null;
+
+  const badges = [
+    {
+      key: "trend",
+      icon: Activity,
+      label: trendOk === null ? "Trend (EMA50)" : trendOk ? "Trend mos (EMA50)" : "Trendga qarshi",
+      ok: trendOk,
+    },
+    {
+      key: "rsi",
+      icon: Activity,
+      label: rsi != null ? `RSI ${rsi.toFixed(0)}` : "RSI",
+      ok: rsi != null ? rsi > 25 && rsi < 75 : null,
+    },
+    {
+      key: "liquidity",
+      icon: Zap,
+      label: m15.liquiditySweep ? "Likvidlik tutish topildi" : "Likvidlik tutish yo'q",
+      ok: m15.liquiditySweep,
+    },
+    {
+      key: "session",
+      icon: Clock,
+      label: m15.session?.label || "Sessiya",
+      ok: m15.session?.active,
+    },
+    {
+      key: "retest",
+      icon: CheckCircle2,
+      label: signal?.retestConfirmed ? "Retest tasdiqlandi" : "Retest kutilmoqda",
+      ok: signal?.retestConfirmed,
+    },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {badges.map(({ key, icon: Icon, label, ok }) => (
+        <span
+          key={key}
+          className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
+            ok === true
+              ? "border-bull/40 bg-bull/10 text-bull"
+              : ok === false
+              ? "border-bear/40 bg-bear/10 text-bear"
+              : "border-line bg-ink text-muted"
+          }`}
+        >
+          <Icon size={12} />
+          {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -228,7 +294,8 @@ export default function LivePage() {
           <h1 className="font-display text-2xl font-semibold">XAUUSD — Real vaqtli SMC tahlil</h1>
           <p className="text-muted text-sm mt-1">
             M5 / M15 / H1 bo'yicha Market Structure, Order Block, FVG, klassik S/R va hajm (tick-volume) tahlili — har {REFRESH_MS / 1000}
-            soniyada avtomatik yangilanadi.
+            soniyada avtomatik yangilanadi. Signal aniqligi uchun EMA/RSI trend filtri, likvidlik tutish (stop-hunt), savdo sessiyasi va
+            retest tasdig'i ham hisobga olinadi.
           </p>
         </div>
 
@@ -271,6 +338,9 @@ export default function LivePage() {
                 </span>
               </div>
               <p className="text-sm text-text/90 leading-relaxed">{sig.reasoning}</p>
+              <div className="mt-3">
+                <ConfirmationBadges m15={data.timeframes.m15} signal={sig} />
+              </div>
               {sig.direction !== "WAIT" && (
                 <div className="grid grid-cols-3 gap-3 mt-4 text-sm">
                   <div className="rounded-lg bg-ink border border-line px-3 py-2">
