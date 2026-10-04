@@ -6,7 +6,7 @@ import { analyzeTimeframe, combineSignal } from "../../../lib/smc";
 // o'ziga xos keshlashni lib/twelveData.js ichida qisqa muddat qilamiz.
 export const dynamic = "force-dynamic";
 
-const ALL_STRATEGIES = ["structure", "ob", "fvg", "sr", "volume"];
+const ALL_STRATEGIES = ["structure", "ob", "fvg", "sr", "volume", "vp"];
 
 // Foydalanuvchi o'chirib qo'ygan strategiyalarning zonalari/signallarini
 // natijadan olib tashlaydi — shunda ham grafikda ko'rinmaydi, ham yakuniy
@@ -19,6 +19,8 @@ function filterStrategies(tf, enabled) {
     fvg: enabled.has("fvg") ? tf.fvg : [],
     sr: enabled.has("sr") ? tf.sr : [],
     volume: enabled.has("volume") ? tf.volume : { available: false, spikes: [] },
+    volumeProfile: enabled.has("vp") ? tf.volumeProfile : null,
+    cumulativeDelta: enabled.has("vp") ? tf.cumulativeDelta : null,
   };
 }
 

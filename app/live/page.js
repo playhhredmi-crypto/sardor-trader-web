@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { RefreshCw, TrendingUp, TrendingDown, Minus, AlertTriangle, Boxes, Layers, Waypoints, BarChart3, Activity, Clock, Zap, CheckCircle2 } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, Minus, AlertTriangle, Boxes, Layers, Waypoints, BarChart3, Activity, Clock, Zap, CheckCircle2, BarChart2 } from "lucide-react";
 import Logo from "../../components/Logo";
 
 const REFRESH_MS = 45_000;
@@ -15,6 +15,7 @@ const STRATEGY_TOGGLES = [
   { key: "fvg", label: "FVG", icon: Boxes, color: "#22D3EE" },
   { key: "sr", label: "Support/Resistance", icon: Minus, color: "#5B8DEF" },
   { key: "volume", label: "Hajm (Volume)", icon: BarChart3, color: "#F0B93D" },
+  { key: "vp", label: "Volume Profile + Delta", icon: BarChart2, color: "#C084FC" },
 ];
 
 const biasLabel = (b) => (b === "bullish" ? "Ko'tarilish" : b === "bearish" ? "Pasayish" : "Noaniq");
@@ -121,8 +122,9 @@ function BiasPill({ tf, bias }) {
   );
 }
 
-// M15 shamlari + OB/FVG zonalarini chizadigan oddiy canvas grafik
-function LiveChart({ candles, orderBlocks, fvg, sr }) {
+// M15 shamlari + OB/FVG zonalarini, (yoqilgan bo'lsa) Volume Profile'ni
+// chizadigan oddiy canvas grafik
+function LiveChart({ candles, orderBlocks, fvg, sr, volumeProfile }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -142,11 +144,15 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
     const top = maxP + pad;
     const bottom = minP - pad;
     const PAD_R = 60;
-    const chartW = W - PAD_R;
+    const VP_W = volumeProfile ? 70 : 0; // Volume Profile uchun chapdagi tor panel
+    const chartStartX = VP_W;
+    const chartW = W - PAD_R - chartStartX;
+
+    const rightEdge = W - PAD_R; // narx yorliqlari boshlanadigan chegara
 
     const yOf = (p) => H - ((p - bottom) / (top - bottom)) * H;
     const xStep = chartW / visible.length;
-    const xOf = (i) => i * xStep + xStep / 2;
+    const xOf = (i) => chartStartX + i * xStep + xStep / 2;
 
     // grid
     ctx.strokeStyle = "#232935";
@@ -154,16 +160,50 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
     for (let i = 0; i <= 4; i++) {
       const y = (H / 4) * i;
       ctx.beginPath();
-      ctx.moveTo(0, y);
+      ctx.moveTo(chartStartX, y);
       ctx.lineTo(W, y);
       ctx.stroke();
       const price = bottom + (top - bottom) * (1 - i / 4);
       ctx.fillStyle = "#7C8698";
       ctx.font = "10px monospace";
-      ctx.fillText(price.toFixed(2), chartW + 4, y + 3);
+      ctx.fillText(price.toFixed(2), rightEdge + 4, y + 3);
     }
 
     const firstIdx = candles.length - visible.length;
+
+    // Volume Profile (POC/VAH/VAL) — chapdagi tor panel, ATAS/Bookmap uslubida
+    if (volumeProfile && volumeProfile.levels?.length) {
+      const binH = H / volumeProfile.levels.length;
+      volumeProfile.levels.forEach((lvl) => {
+        if (lvl.price < bottom || lvl.price > top) return;
+        const y = yOf(lvl.price);
+        const barW = Math.max(1, lvl.ratio * (VP_W - 8));
+        ctx.fillStyle = "#C084FC33";
+        ctx.fillRect(0, y - binH / 2, barW, Math.max(1, binH * 0.8));
+      });
+      // POC chizig'i (eng ko'p savdo qilingan narx)
+      const pocY = yOf(volumeProfile.poc);
+      ctx.strokeStyle = "#C084FC";
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.moveTo(0, pocY);
+      ctx.lineTo(W, pocY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 1;
+      // VAH/VAL chegaralari
+      [volumeProfile.vah, volumeProfile.val].forEach((p) => {
+        const vy = yOf(p);
+        ctx.strokeStyle = "#C084FC66";
+        ctx.setLineDash([1, 3]);
+        ctx.beginPath();
+        ctx.moveTo(0, vy);
+        ctx.lineTo(W, vy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
 
     // S/R darajalari
     (sr || []).forEach((lvl) => {
@@ -171,8 +211,8 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
       ctx.strokeStyle = lvl.type === "resistance" ? "#F0575E55" : "#3ECF8E55";
       ctx.setLineDash([4, 3]);
       ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(chartW, y);
+      ctx.moveTo(chartStartX, y);
+      ctx.lineTo(rightEdge, y);
       ctx.stroke();
       ctx.setLineDash([]);
     });
@@ -182,7 +222,7 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
       const xi = Math.max(0, z.index - firstIdx);
       const x = xOf(xi);
       ctx.fillStyle = z.type === "bullish" ? "#22D3EE22" : "#22D3EE15";
-      ctx.fillRect(x, yOf(z.top), chartW - x, yOf(z.bottom) - yOf(z.top));
+      ctx.fillRect(x, yOf(z.top), rightEdge - x, yOf(z.bottom) - yOf(z.top));
     });
 
     // Order Block zonalari
@@ -190,9 +230,9 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
       const xi = Math.max(0, z.index - firstIdx);
       const x = xOf(xi);
       ctx.fillStyle = z.type === "bullish" ? "#3ECF8E2A" : "#F0575E2A";
-      ctx.fillRect(x, yOf(z.top), chartW - x, yOf(z.bottom) - yOf(z.top));
+      ctx.fillRect(x, yOf(z.top), rightEdge - x, yOf(z.bottom) - yOf(z.top));
       ctx.strokeStyle = z.type === "bullish" ? "#3ECF8E88" : "#F0575E88";
-      ctx.strokeRect(x, yOf(z.top), chartW - x, yOf(z.bottom) - yOf(z.top));
+      ctx.strokeRect(x, yOf(z.top), rightEdge - x, yOf(z.bottom) - yOf(z.top));
     });
 
     // shamlar
@@ -216,16 +256,59 @@ function LiveChart({ candles, orderBlocks, fvg, sr }) {
     ctx.strokeStyle = "#E8B33D";
     ctx.setLineDash([4, 3]);
     ctx.beginPath();
-    ctx.moveTo(0, y);
+    ctx.moveTo(chartStartX, y);
     ctx.lineTo(W, y);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = "#E8B33D";
     ctx.font = "bold 11px monospace";
-    ctx.fillText(last.close.toFixed(2), chartW + 4, y - 4 < 10 ? 14 : y - 4);
-  }, [candles, orderBlocks, fvg, sr]);
+    ctx.fillText(last.close.toFixed(2), rightEdge + 4, y - 4 < 10 ? 14 : y - 4);
+  }, [candles, orderBlocks, fvg, sr, volumeProfile]);
 
   return <canvas ref={canvasRef} width={900} height={420} className="w-full h-[420px] rounded-xl bg-ink border border-line" />;
+}
+
+// Cumulative Delta — ATAS/Bookmap'dagi delta grafigiga o'xshash, taxminiy
+// xaridor/sotuvchi bosimini mini-ustunlar va umumiy qiymat bilan ko'rsatadi.
+function CumulativeDeltaPanel({ cumulativeDelta }) {
+  if (!cumulativeDelta || !cumulativeDelta.series?.length) {
+    return (
+      <div className="rounded-xl border border-line bg-panel p-4 text-xs text-muted">
+        Cumulative Delta — hajm ma'lumoti mavjud emas (ba'zi forex juftliklarida tick-volume kelmaydi).
+      </div>
+    );
+  }
+  const { series, last, trend } = cumulativeDelta;
+  const maxAbs = Math.max(1, ...series.map((s) => Math.abs(s.delta)));
+  const trendColor = trend === "bullish" ? "text-bull" : trend === "bearish" ? "text-bear" : "text-muted";
+
+  return (
+    <div className="rounded-xl border border-line bg-panel p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-medium text-text/90">Cumulative Delta (taxminiy)</h3>
+        <span className={`font-mono text-sm font-semibold ${trendColor}`}>
+          {last >= 0 ? "+" : ""}
+          {last.toFixed(0)}
+        </span>
+      </div>
+      <div className="flex items-end gap-[2px] h-14">
+        {series.map((s, i) => {
+          const h = Math.max(2, (Math.abs(s.delta) / maxAbs) * 56);
+          return (
+            <div
+              key={i}
+              className="flex-1 rounded-sm"
+              style={{ height: `${h}px`, backgroundColor: s.delta >= 0 ? "#3ECF8E" : "#F0575E", opacity: 0.8 }}
+              title={`${s.time}: ${s.delta.toFixed(1)}`}
+            />
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted mt-2">
+        Haqiqiy bid/ask oqimi emas — har shamning yopilish joyi asosida xaridor/sotuvchi bosimi taxmin qilinadi.
+      </p>
+    </div>
+  );
 }
 
 export default function LivePage() {
@@ -295,7 +378,8 @@ export default function LivePage() {
           <p className="text-muted text-sm mt-1">
             M5 / M15 / H1 bo'yicha Market Structure, Order Block, FVG, klassik S/R va hajm (tick-volume) tahlili — har {REFRESH_MS / 1000}
             soniyada avtomatik yangilanadi. Signal aniqligi uchun EMA/RSI trend filtri, likvidlik tutish (stop-hunt), savdo sessiyasi va
-            retest tasdig'i ham hisobga olinadi.
+            retest tasdig'i ham hisobga olinadi. "Volume Profile + Delta" yoqilganda ATAS/Bookmap uslubidagi taxminiy hajm taqsimoti
+            (POC/VAH/VAL) va xaridor/sotuvchi bosimi ham ko'rsatiladi.
           </p>
         </div>
 
@@ -327,7 +411,10 @@ export default function LivePage() {
               orderBlocks={data.timeframes.m15.orderBlocks}
               fvg={data.timeframes.m15.fvg}
               sr={data.timeframes.m15.sr}
+              volumeProfile={data.timeframes.m15.volumeProfile}
             />
+
+            {enabled.has("vp") && <CumulativeDeltaPanel cumulativeDelta={data.timeframes.m5.cumulativeDelta} />}
 
             <div className="rounded-xl border border-line bg-panel p-5">
               <div className="flex items-center justify-between mb-3">
